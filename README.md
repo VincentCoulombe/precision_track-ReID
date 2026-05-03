@@ -70,7 +70,7 @@ pip install -e ".[cuda]"
 
 ### 1. Create a MOT dataset
 
-The first step is to have a MOT dataset, meaning [MOT-styled annonotations](https://motchallenge.net/).
+The first step is to have a MOT dataset, meaning [MOT-styled annotations](https://motchallenge.net/).
 
 A MOT-styled annotation file is a `.csv` where each row describes a single bounding box in a single frame. For example:
 
@@ -84,7 +84,7 @@ A MOT-styled annotation file is a `.csv` where each row describes a single bound
 
 For reference, you can check the [MICE sequential dataset](https://drive.google.com/drive/folders/1WcDkX-92X6SCgZPAZXFyDc6EGUzU0Onq?usp=drive_link) which have MOT-styled annonotations under its `./bboxes/*` directories.
 
-**Note** The MOT-styled annonotations are used inside the dataset creation pipeline. It will indicate where to crop the images. As such, we recommend the bounding boxes to be as precise as possible.
+**Note** The MOT-styled annotations are used inside the dataset creation pipeline. It will indicate where to crop the images. As such, we recommend the bounding boxes to be as precise as possible.
 
 ### 2. Create a dataset metadata file
 
