@@ -133,13 +133,21 @@ Format your `dataset_directory` so it has the following structure. You will then
 ```bash
 <Your dataset root directory>/
   ├── bboxes/
-  │ ├── video1.csv # NOTE: This is your MOT annotations (your bounding bboxes). They can have any name
-  │ ├── video2.csv
-  │ ├── etc...
+  │ ├── train
+  │   ├── video1.csv # NOTE: This is your MOT annotations (your bounding bboxes). They can have any name
+  │   ├── video2.csv
+  │   ├── etc...
+  │ ├── val
+  │   ├── video3.csv
+  │   ├── etc...
   ├── videos/
-  │ ├── video1.mp4 # NOTE: Your videos must match their correspondig MOT bboxes files.
-  │ ├── video2.avi
-  │ ├── etc...
+  │ ├── train
+  │   ├── video1.mp4 # NOTE: Your videos must match their correspondig MOT bboxes files.
+  │   ├── video2.avi
+  │   ├── etc...
+  │ ├── val
+  │   ├── video3.mp4
+  │   ├── etc...
   ├── <your metadata file>/ # NOTE This is the metadata file from step 1.
 ```
 
