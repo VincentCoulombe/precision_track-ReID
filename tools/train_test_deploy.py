@@ -1,8 +1,6 @@
-from itertools import chain
+import json
 import os
-import torchvision.transforms as T
-from torch.optim.lr_scheduler import LambdaLR, CosineAnnealingLR, SequentialLR
-from torch.optim import SGD
+
 import yaml
 from addict import Dict
 
@@ -10,7 +8,6 @@ from wildlife_tools.fork_additions import (
     PtReIDModel,
     ClassificationTrainerWithValidation,
     BalancedImageDataset,
-    create_labels_file,
     cuda_available,
     test_metrics,
     test_classification,
@@ -22,11 +19,15 @@ from wildlife_tools.fork_additions import (
 
 
 def train(config):
+    model = PtReIDModel(config.model_config, pretrained=True)
+    train_transforms = model.strategy.get_train_transforms(config.img_size)
+    test_transforms = model.strategy.get_test_transforms(config.img_size)
+
     dataset = BalancedImageDataset(
         metadata=config.metadata,
         root=config.dataset_directory,
         phase="train",
-        transform=config.train_transforms,
+        transform=train_transforms,
         max_length=2000,
         select_every=1,
         detector_checkpoint=config.detector_checkpoint,
@@ -38,14 +39,14 @@ def train(config):
         phase="val",
         metadata=config.metadata,
         root=config.dataset_directory,
-        transform=config.test_transforms,
+        transform=test_transforms,
         img_size=config.img_size,
         max_length=2000,
         select_every=10,
         return_isolation=True,
         detector_checkpoint=config.detector_checkpoint,
     )
-    validation_label_map = dataset.labels_map
+    validation_label_map = val_dataset.labels_map
 
     assert (
         config.num_classes == n_training_dataset
@@ -61,22 +62,13 @@ def train(config):
             f,
         )
 
-    model = PtReIDModel(config.model_config, pretrained=True)
     objective = ArcFaceWithCrossEntropyLoss(
         num_classes=dataset.num_classes, embedding_size=config.model_config.n_output_embd, margin=0.5, scale=64
     )
 
-    params = chain(filter(lambda p: p.requires_grad, model.parameters()), objective.arcface_loss.parameters())
-    optimizer = SGD(params=params, lr=0.001, momentum=0.9)
-    min_lr = optimizer.defaults.get("lr") * 1e-3
-
     epochs = config.epochs
-    warmup_epochs = int(2 * epochs / 3)
-    cosine_epochs = epochs - warmup_epochs
-
-    warmup = LambdaLR(optimizer, lr_lambda=lambda epoch: (epoch + 1) / warmup_epochs)
-    cosine = CosineAnnealingLR(optimizer, T_max=cosine_epochs, eta_min=min_lr)
-    scheduler = SequentialLR(optimizer, schedulers=[warmup, cosine], milestones=[warmup_epochs])
+    optimizer = model.strategy.build_optimizer(model, objective)
+    scheduler = model.strategy.build_scheduler(optimizer, epochs)
 
     trainer = ClassificationTrainerWithValidation(
         dataset=dataset,
@@ -101,18 +93,28 @@ def train(config):
 def test(config):
     ckpt_path = os.path.abspath(os.path.join(config.save_directory, "precision_track_re-identificator.pth"))
     model = PtReIDModel(config=config.model_config, checkpoint=ckpt_path)
-    # model = PtReIDModel(config=config.model_config, checkpoint=None, pretrained=True)
+    config.test_transforms = model.strategy.get_test_transforms(config.img_size)
 
-    test_metrics(config, model)
-    test_classification(config, model)
+    f1_metrics = test_metrics(config, model)
+    f1_classification = test_classification(config, model)
 
+    results = dict(
+        f1_metrics=f1_metrics,
+        f1_classification=f1_classification,
+        nb_params=model.nb_params,
+    )
+
+    out_path = os.path.abspath(os.path.join(config.save_directory, "test_results.json"))
+    with open(out_path, "w") as f:
+        json.dump(results, f, indent=2)
+
+    print_info(f"Test results saved at: {out_path}")
     print_info("Done testing.")
 
 
 def deploy(config):
     ckpt_path = os.path.abspath(os.path.join(config.save_directory, "precision_track_re-identificator.pth"))
     model = PtReIDModel(config=config.model_config, checkpoint=ckpt_path)
-    # model = PtReIDModel(config=config.model_config, checkpoint=None, pretrained=True)
     model.eval()
 
     deploy_model(config, model)
@@ -135,31 +137,15 @@ def main():
 
     config.img_size = (224, 224)
 
-    config.train_transforms = T.Compose(
-        [
-            T.ToPILImage(),
-            T.RandomResizedCrop(size=config.img_size, scale=(0.8, 1.0)),
-            T.RandAugment(num_ops=2, magnitude=20),
-            T.RandomHorizontalFlip(p=0.5),
-            T.ToTensor(),
-            T.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-        ]
-    )
-    config.test_transforms = T.Compose(
-        [
-            T.ToTensor(),
-            T.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-        ]
-    )
-
     config.model_config = Dict(
         dict(
             backbone_name=config.backbone_name,
-            freeze_backbone=False,
+            freeze_backbone=config.freeze_backbone,
             n_output_embd=128,
-            n_layers=1,
+            n_layers=3,
             n_classes=config.num_classes,
             dropout=0.0,
+            bias=True,
         )
     )
 
