@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Read(//home/vincent/Documents/precision_track-ReID/**)",
-      "Bash(python -c \"import ast; ast.parse\\(open\\('/home/vincent/Documents/precision_track-ReID/wildlife_tools/fork_additions/nn.py'\\).read\\(\\)\\); print\\('nn.py syntax OK'\\)\")",
-      "Bash(python -c \"import ast; ast.parse\\(open\\('/home/vincent/Documents/precision_track-ReID/tools/train_test_deploy.py'\\).read\\(\\)\\); print\\('train_test_deploy.py syntax OK'\\)\")"
-    ]
-  }
-}
