@@ -7,11 +7,11 @@ import json
 import random
 import numpy as np
 
-from .utils import print_info, print_counts, calculate_overlaps, DetectionFilter
+from .utils import print_info, print_warning, print_counts, calculate_overlaps, enlarge_and_clip_bbox, DetectionFilter
 
 
 class BalancedImageDataset:
-    BBOX_COLUMNS = ["frame_id", "class_id", "instance_id", "x", "y", "w", "h", "score"]
+    MANDATORY_BBOX_COLUMNS = ["frame_id", "class_id", "instance_id", "x", "y", "w", "h"]
     SUPPORTED_PHASES = ["train", "val", "test"]
 
     def __init__(
@@ -25,14 +25,23 @@ class BalancedImageDataset:
         overlap_thr: float = 0.8,
         return_isolation: bool = False,
         detector_checkpoint: str | None = None,
+        bbox_enlargement: float = 0.1,
+        confidence_threshold: float = 0.75,
     ):
         self.return_isolation = bool(return_isolation)
         self.confident_only = detector_checkpoint is not None
+        self.bbox_enlargement = float(bbox_enlargement)
+        self.confidence_threshold = float(confidence_threshold)
+
+        if self.confident_only:
+            print_info(f"Confidence filter ENABLED (threshold={self.confidence_threshold}).")
+        else:
+            print_info("Confidence filter DISABLED - all crops will be kept.")
 
         assert phase in self.SUPPORTED_PHASES
         self.phase = phase
         self.select_every = select_every
-        self.overlap_thr = overlap_thr
+        self.overlap_thr = float(overlap_thr)
 
         self.mapping = None
         with open(os.path.join(root, metadata), "r") as f:
@@ -59,9 +68,19 @@ class BalancedImageDataset:
             if ext == ".csv":
                 seq_path = os.path.abspath(os.path.join(bboxes_dir, file))
                 sequence = pd.read_csv(seq_path)
-                assert (
-                    sequence.columns.tolist() == self.BBOX_COLUMNS
-                ), f"The bounding boxes ground truth file: '{seq_path}' columns must be {self.BBOX_COLUMNS}, reveived {sequence.columns}."
+                missing_columns = [c for c in self.MANDATORY_BBOX_COLUMNS if c not in sequence.columns]
+                assert not missing_columns, (
+                    f"The bounding boxes ground truth file: '{seq_path}' is missing the mandatory "
+                    f"columns {missing_columns}. Mandatory columns are {self.MANDATORY_BBOX_COLUMNS}, "
+                    f"received {sequence.columns.tolist()}."
+                )
+                extra_columns = [c for c in sequence.columns if c not in self.MANDATORY_BBOX_COLUMNS]
+                if extra_columns:
+                    print_warning(
+                        f"The bounding boxes ground truth file: '{seq_path}' has extra columns "
+                        f"{extra_columns} that are not used."
+                    )
+                    sequence = sequence[self.MANDATORY_BBOX_COLUMNS]
                 self.sequences[name] = sequence
                 for row in sequence[["class_id", "instance_id"]].itertuples(index=False):
                     idx = self._find_instance_in_mapping(name, row.class_id, row.instance_id)
@@ -113,6 +132,7 @@ class BalancedImageDataset:
                 detection_filter = DetectionFilter(
                     model={"input_shapes": [(640, 640)], "checkpoint": detector_checkpoint},
                     sample_every=1,
+                    conf_thresh=self.confidence_threshold,
                 )
 
             for video_file in os.listdir(videos_dir):
@@ -178,6 +198,9 @@ class BalancedImageDataset:
                             if confident_ids is not None:
                                 is_confident = global_identity in confident_ids
 
+                            if self.confident_only and not is_confident:
+                                continue
+
                             # Filter out redundant crops (immobile subjects)
                             x, y, w, h = int(row.x), int(row.y), int(row.w), int(row.h)
                             current_bbox = (x, y, w, h)
@@ -185,7 +208,11 @@ class BalancedImageDataset:
                                 overlap = calculate_overlaps(last_seen_bbox[global_identity], current_bbox)
                                 if overlap > self.overlap_thr:
                                     continue
-                            crop = frame[y : y + h, x : x + w]
+
+                            enlrgd_x, enlrgd_y, enlrgd_w, enlrgd_h = enlarge_and_clip_bbox(
+                                current_bbox, self.bbox_enlargement, frame.shape
+                            )
+                            crop = frame[enlrgd_y : enlrgd_y + enlrgd_h, enlrgd_x : enlrgd_x + enlrgd_w]
 
                             if crop.size == 0:
                                 continue
@@ -200,12 +227,6 @@ class BalancedImageDataset:
                             cv2.imwrite(output_path, crop)
 
                             isolation_status = True
-                            # Enlarge current bbox by 10%
-                            enlarged_w = w * 1.1
-                            enlarged_h = h * 1.1
-                            enlarged_x = x - (enlarged_w - w) / 2
-                            enlarged_y = y - (enlarged_h - h) / 2
-                            enlarged_bbox = (enlarged_x, enlarged_y, enlarged_w, enlarged_h)
 
                             # Check overlap with all other bboxes in the frame
                             for other_row in frame_bboxes.itertuples(index=False):
@@ -217,7 +238,7 @@ class BalancedImageDataset:
                                     int(other_row.w),
                                     int(other_row.h),
                                 )
-                                if calculate_overlaps(enlarged_bbox, other_bbox) > 0:
+                                if calculate_overlaps(current_bbox, other_bbox) > 0:
                                     isolation_status = False
                                     break
 
@@ -353,6 +374,8 @@ class NumpyDataset(BalancedImageDataset):
         select_every: int = 5,
         return_isolation: bool = False,
         detector_checkpoint: str | None = None,
+        bbox_enlargement: float = 0.1,
+        confidence_threshold: float = 0.75,
     ):
         super().__init__(
             metadata=metadata,
@@ -363,6 +386,8 @@ class NumpyDataset(BalancedImageDataset):
             select_every=select_every,
             return_isolation=return_isolation,
             detector_checkpoint=detector_checkpoint,
+            bbox_enlargement=bbox_enlargement,
+            confidence_threshold=confidence_threshold,
         )
         self.img_size = img_size
 

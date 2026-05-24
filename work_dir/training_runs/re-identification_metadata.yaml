@@ -1,0 +1,12 @@
+bbox_enlargement: 0.5
+confidence_threshold: 0.75
+identities:
+- Horizontal
+- Vertical
+- Top
+- Nada
+- Bottom
+input_shape:
+- 224
+- 224
+nb_features: 128

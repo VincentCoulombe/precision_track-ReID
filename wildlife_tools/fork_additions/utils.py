@@ -43,11 +43,8 @@ def warn_confused_pairs(confusion_matrix: np.ndarray, class_names=None, threshol
     msg = "Some identifiants are often confused by the model.\n"
 
     for i in range(n_classes):
-        nb_true_positives_i = confusion_matrix[i, i]
         total_i = confusion_matrix[i, :].sum()
         for j in range(i + 1, n_classes):
-
-            nb_true_positives_j = confusion_matrix[j, j]
 
             i_predicted_as_j = confusion_matrix[i, j]
             j_predicted_as_i = confusion_matrix[j, i]
@@ -56,11 +53,10 @@ def warn_confused_pairs(confusion_matrix: np.ndarray, class_names=None, threshol
 
             if total_i > 0 and total_j > 0:
                 total_confusion = i_predicted_as_j + j_predicted_as_i
-                total_correct = nb_true_positives_i + nb_true_positives_j
-                confusion_rate = total_confusion / total_correct
+                confusion_rate = total_confusion / (total_i + total_j)
 
-                i_to_j_rate = i_predicted_as_j / total_correct + i_predicted_as_j
-                j_to_i_rate = j_predicted_as_i / total_correct + j_predicted_as_i
+                i_to_j_rate = i_predicted_as_j / total_i
+                j_to_i_rate = j_predicted_as_i / total_j
 
                 if confusion_rate > threshold:
                     msg += f"\t-'{class_names[i]}' is confused as '{class_names[j]}' {i_to_j_rate:.1%} of the time, while '{class_names[j]}' is confused as '{class_names[i]}' {j_to_i_rate:.1%} of the time.\n"
@@ -82,6 +78,32 @@ def print_counts(counts: list, labels: list, phase: str = ""):
     plt.title(f"Identity Distribution ({phase})")
     plt.show()
     plt.clear_figure()
+
+
+def enlarge_and_clip_bbox(bbox, factor, frame_shape):
+    """
+    Enlarge a bbox around its center by a fractional factor and clip to frame bounds.
+
+    Args:
+        bbox: tuple/list (x, y, w, h) in pixel coords.
+        factor: float - enlargement fraction (e.g., 0.1 means 10% larger on each side).
+        frame_shape: frame shape with (H, W) as the first two dims.
+
+    Returns:
+        tuple (x, y, w, h) of ints, clipped to [0, W] x [0, H].
+    """
+    x, y, w, h = bbox
+    frame_h, frame_w = frame_shape[0], frame_shape[1]
+
+    half_dw = w * factor / 2.0
+    half_dh = h * factor / 2.0
+
+    x1 = max(0, int(x - half_dw))
+    y1 = max(0, int(y - half_dh))
+    x2 = min(frame_w, int(x + w + half_dw))
+    y2 = min(frame_h, int(y + h + half_dh))
+
+    return x1, y1, max(0, x2 - x1), max(0, y2 - y1)
 
 
 def calculate_overlaps(b1, b2):

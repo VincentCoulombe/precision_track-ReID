@@ -1,0 +1,15 @@
+{
+  "f1_metrics": {
+    "all_all": 0.7476261257646386,
+    "all_isolated": 0.7433915254826073,
+    "conf_only_all": 0.7476261257646386,
+    "conf_only_isolated": 0.7433915254826073
+  },
+  "f1_classification": {
+    "all_all": 0.8031387603458829,
+    "all_isolated": 0.794582268060914,
+    "conf_only_all": 0.8031387603458829,
+    "conf_only_isolated": 0.794582268060914
+  },
+  "nb_params": 28315109
+}
