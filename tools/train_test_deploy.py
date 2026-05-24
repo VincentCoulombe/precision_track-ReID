@@ -31,6 +31,8 @@ def train(config):
         max_length=2000,
         select_every=1,
         detector_checkpoint=config.detector_checkpoint,
+        bbox_enlargement=config.bbox_enlargement,
+        confidence_threshold=config.confidence_threshold,
     )
     n_training_dataset = dataset.num_classes
     training_label_map = dataset.labels_map
@@ -45,6 +47,8 @@ def train(config):
         select_every=10,
         return_isolation=True,
         detector_checkpoint=config.detector_checkpoint,
+        bbox_enlargement=config.bbox_enlargement,
+        confidence_threshold=config.confidence_threshold,
     )
     validation_label_map = val_dataset.labels_map
 
@@ -58,7 +62,13 @@ def train(config):
 
     with open(os.path.join(config.save_directory, "re-identification_metadata.yaml"), "w") as f:
         yaml.dump(
-            dict(input_shape=[224, 224], nb_features=config.model_config.n_output_embd, identities=training_label_map),
+            dict(
+                input_shape=[224, 224],
+                nb_features=config.model_config.n_output_embd,
+                identities=training_label_map,
+                confidence_threshold=config.confidence_threshold,
+                bbox_enlargement=config.bbox_enlargement,
+            ),
             f,
         )
 

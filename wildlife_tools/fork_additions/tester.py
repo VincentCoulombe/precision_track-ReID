@@ -43,6 +43,8 @@ def test_metrics(config, model):
                 phase="train",
                 return_isolation=True,
                 detector_checkpoint=detector_ckpt,
+                bbox_enlargement=config.bbox_enlargement,
+                confidence_threshold=config.confidence_threshold,
             )
         )
 
@@ -57,6 +59,8 @@ def test_metrics(config, model):
                 phase="val",
                 return_isolation=True,
                 detector_checkpoint=detector_ckpt,
+                bbox_enlargement=config.bbox_enlargement,
+                confidence_threshold=config.confidence_threshold,
             )
         )
 
@@ -118,6 +122,8 @@ def test_classification(config, model):
             phase="val",
             return_isolation=True,
             detector_checkpoint=detector_ckpt,
+            bbox_enlargement=config.bbox_enlargement,
+            confidence_threshold=config.confidence_threshold,
         )
 
         test_dataloader = torch.utils.data.DataLoader(

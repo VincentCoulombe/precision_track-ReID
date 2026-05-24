@@ -95,7 +95,7 @@ You will also need a dataset metadata file (identities between each of yours MOT
 	"classes": ["Benjamin", "Jacob", "Noodle", "Puddy", "Leo"],
 	// NOTE the sequence mappings are expected to be the same length as the classes list
 	"sequence_2025-12-22T09_08_33": [
-		[0, 4], // NOTE this means that the identity linked to instance id 0 of the class id 0 is 'Benjamin'
+		[0, 4], // NOTE this means that the identity 'Benjamin' is linked to the instance id 4 of the class id 0
 		[0, 1],
 		[0, 3],
 		[0, 5], // NOTE this means that the identity linked to instance id 5 of the class id 0 is 'Puddy'
@@ -134,7 +134,7 @@ Format your `dataset_directory` so it has the following structure. You will then
 <Your dataset root directory>/
   ├── bboxes/
   │ ├── train
-  │   ├── video1.csv # NOTE: This is your MOT annotations (your bounding bboxes). They can have any name
+  │   ├── video1.csv # NOTE: This is your MOT annotations (your bounding bboxes from step 1). The files can have any name
   │   ├── video2.csv
   │   ├── etc...
   │ ├── val
@@ -142,13 +142,13 @@ Format your `dataset_directory` so it has the following structure. You will then
   │   ├── etc...
   ├── videos/
   │ ├── train
-  │   ├── video1.mp4 # NOTE: Your videos must match their correspondig MOT bboxes files.
+  │   ├── video1.mp4 # NOTE: The name of the video files must match their correspondig MOT bboxes files (excluding the extension, obviously).
   │   ├── video2.avi
   │   ├── etc...
   │ ├── val
   │   ├── video3.mp4
   │   ├── etc...
-  ├── <your metadata file>/ # NOTE This is the metadata file from step 1.
+  ├── <your metadata file>.json/ # NOTE This is the metadata file from step 2.
 ```
 
 **Note**: The pipeline will automatically create a crops and saved them in the `<dataset_directory>/crops/` directory. The system will also save a `labels.csv` for each phase (train and val) **if one doesn't exist**. If you want to regenerate your dataset, simply delete the `<dataset_directory>/crops/` directory.
@@ -168,6 +168,14 @@ Once done, move the newly generated deployed ONNX or TensorRT checkpoints to you
 
 ## Citation
 
+```latex
+@misc{precision_track2025,
+    title={PrecisionTrack: A Platform for Automated Long-Term Social Behavior Analysis in Naturalized Environments},
+    author={Coulombe & al},
+    year={2025}
+}
+```
+
 ```
 @InProceedings{Cermak_2024_WACV,
     author    = {\v{C}erm\'ak, Vojt\v{e}ch and Picek, Luk\'a\v{s} and Adam, Luk\'a\v{s} and Papafitsoros, Kostas},
@@ -176,13 +184,5 @@ Once done, move the newly generated deployed ONNX or TensorRT checkpoints to you
     month     = {January},
     year      = {2024},
     pages     = {5953-5963}
-}
-```
-
-```latex
-@misc{precision_track2025,
-    title={PrecisionTrack: A Platform for Automated Long-Term Social Behavior Analysis in Naturalized Environments},
-    author={Coulombe & al},
-    year={2025}
 }
 ```

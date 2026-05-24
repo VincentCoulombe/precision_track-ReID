@@ -106,7 +106,23 @@ This mapping allows the network to associate each unique IDS (a combination of t
 
 ## Crop confidence filter (optional)
 
-- **`detector_checkpoint`**: Path to your PrecisionTrack's checkpoint. This option is optionnal, meaning you can leave a `null` value to disable it. If enable, the dataset creation pipeline will be able to access a confidence level for each crop of your dataset. Knowing the confidence level of your crop will then enable the testing pipeline to calculate a F1 score specifically for confident crops (confidence > 0.75).
+- **`detector_checkpoint`**: Path to your PrecisionTrack's checkpoint. This option is optionnal, meaning you can leave a `null` value to disable it. If enable, the dataset creation pipeline will be able to access a confidence level for each crop of your dataset. Knowing the confidence level of your crop will then enable the testing pipeline to calculate a F1 score specifically for confident crops.
+
+### `confidence_threshold`
+
+- **Type**: Float (0.0 to 1.0)
+- **Default**: `0.75`
+- **Description**: Minimum detector score a crop must reach to be considered "confident". This value is only consulted when `detector_checkpoint` is set; otherwise no detector is run and the filter is disabled. When the filter is enabled, the dataset creation pipeline writes only crops whose detector score is `>= confidence_threshold` to disk, and the testing pipeline reports a dedicated F1 score over those confident crops.
+
+**Important**: This value is only used when creating a new `labels.csv` file. If a labels file already exists, this parameter is ignored — delete `<dataset_directory>/crops/<phase>/labels.csv` to regenerate with a new threshold.
+
+### `bbox_enlargement`
+
+- **Type**: Float (>= 0.0)
+- **Default**: `0.1`
+- **Description**: Fraction by which each ground-truth bounding box is enlarged when checking whether a crop is "isolated" from neighbouring detections in the same frame. For example, `0.1` enlarges the bbox by 10% in both width and height; if no other bbox in the frame overlaps the enlarged region, the crop is flagged `isolated=True`. The testing pipeline reports a dedicated F1 score over isolated crops. A larger value yields a stricter isolation criterion (fewer crops flagged isolated).
+
+**Important**: This value is only used when creating a new `labels.csv` file. If a labels file already exists, this parameter is ignored — delete `<dataset_directory>/crops/<phase>/labels.csv` to regenerate with a new enlargement factor.
 
 ## Training Parameters
 
