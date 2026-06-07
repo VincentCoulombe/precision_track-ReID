@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 import os
 from onnxconverter_common import float16
 import onnx
@@ -8,8 +9,100 @@ from wildlife_tools.fork_additions import (
 )
 
 
+def calibrate_temperature(config, model):
+    """Temperature-scale the classification head (Guo et al. / gpleiss).
+
+    Fits a single scalar temperature T on the validation set by minimizing the
+    cross-entropy (NLL) of the scaled logits with LBFGS, then folds 1/T into the
+    head's final Linear layer. Because that layer is affine, dividing its weight
+    and bias by T is identical to logits / T, so the calibration is baked into
+    the weights with no change to the exported graph and no separate parameter
+    to carry. Only the in-memory model is mutated (the .pth on disk is untouched).
+    """
+    from .dataset import NumpyDataset  # local import to avoid package-init cycle
+
+    device = config.device
+    orig_device = next(model.parameters()).device
+    test_transforms = model.strategy.get_test_transforms(config.img_size)
+    val_dataset = NumpyDataset(
+        phase="val",
+        metadata=config.metadata,
+        root=config.dataset_directory,
+        transform=test_transforms,
+        img_size=config.img_size,
+        max_length=2000,
+        select_every=10,
+        return_isolation=True,
+        detector_checkpoint=config.detector_checkpoint,
+        bbox_enlargement=config.bbox_enlargement,
+        confidence_threshold=config.confidence_threshold,
+    )
+    val_dataloader = torch.utils.data.DataLoader(
+        val_dataset,
+        batch_size=config.batch_size,
+        num_workers=2,
+        shuffle=False,
+    )
+
+    model = model.to(device)
+    model.eval()
+    prev_return_features = model.return_features
+    model.return_features = False
+
+    logits_list = []
+    labels_list = []
+    with torch.no_grad():
+        for x, y, _ in val_dataloader:
+            x = x.to(device)
+            logits = model(x)
+            logits_list.append(logits)
+            labels_list.append(y.to(device))
+
+    model.return_features = prev_return_features
+
+    if not logits_list:
+        model.to(orig_device)
+        print_info("Calibration skipped: validation set is empty.")
+        return
+
+    logits = torch.cat(logits_list)
+    labels = torch.cat(labels_list)
+
+    before_nll = F.cross_entropy(logits, labels).item()
+
+    temperature = torch.nn.Parameter(torch.ones(1, device=device) * 1.5)
+    optimizer = torch.optim.LBFGS([temperature], lr=0.01, max_iter=50)
+
+    def _eval():
+        optimizer.zero_grad()
+        loss = F.cross_entropy(logits / temperature, labels)
+        loss.backward()
+        return loss
+
+    optimizer.step(_eval)
+
+    t = temperature.detach().clamp(min=1e-3).item()
+    after_nll = F.cross_entropy(logits / t, labels).item()
+
+    print_info(
+        f"Temperature scaling: T={t:.4f} | NLL before={before_nll:.4f} after={after_nll:.4f}. "
+        f"Folding 1/T into the classification head."
+    )
+
+    with torch.no_grad():
+        final = model.head.blocks[-1]  # nn.Linear(n_output_embd, n_classes)
+        final.weight.div_(t)
+        final.bias.div_(t)
+
+    model.to(orig_device)
+
+
 def deploy_model(config, model):
     save_dir = config.save_directory
+
+    calibrate_temperature(config, model)
+
+    model.eval()
     dummy_input = torch.randn(1, 3, 224, 224)
 
     use_fp16 = False
