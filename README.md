@@ -13,17 +13,7 @@
 
 ## Introduction
 
-**PrecisionTrack ReID** bridges the gap between [wildlife-tools](https://wildlifedatasets.github.io/wildlife-tools/) and [PrecisionTrack](https://github.com/VincentCoulombe/precision_track/tree/main), enabling researchers to train species-specific re-identification models and deploy them for automated identity tracking in behavioral studies.
-
-### Key Features
-
-- **End-to-end workflow**: Train, validate, and deploy custom re-identification models
-- **Species-agnostic**: Works with any visually distinguishable animal species
-- **Seamless integration**: Trained models can be directly imported into PrecisionTrack's tracking pipeline
-- **Built on wildlife-tools**: Leverages state-of-the-art models like [MegaDescriptor](https://huggingface.co/BVRA/MegaDescriptor-T-224) and [CLIP](https://github.com/openai/CLIP)
-- **Dataset compatibility**: Works seamlessly with [WildlifeDatasets](https://github.com/WildlifeDatasets/wildlife-datasets)
-
-More information can be found in the [documentation](https://wildlifedatasets.github.io/wildlife-tools/).
+**PrecisionTrack ReID** Enables researchers to train species-specific re-identification models and deploy them. These models can then be used within [PrecisionTrack](https://github.com/VincentCoulombe/precision_track/tree/main), enabling PrecisionTrackers to perform evidence-based re-identification. To configure your PrecisionTracker, you will first need to go over all the steps within the **How to use** section of this README in order to train, test and deploy a re-identification model, then follow the [PrecisionTrack appearance re-identification configuration guide](https://github.com/VincentCoulombe/precision_track/tree/main/configs/settings/validation) to configuration your PrecisionTracker so it uses your newly deployed re-identification model.
 
 ## Installation
 
@@ -39,19 +29,29 @@ conda create -n precision_track_reid python==3.11
 conda activate precision_track_reid
 ```
 
-3. Install using `pip`
+3. (Recommended) Install a GPU-enabled build of PyTorch matching your CUDA driver
+
+By default, `pip` may not select a CUDA-enabled build of `torch` for your system. Check your driver's CUDA version with `nvidia-smi`, then install the matching build **before** installing this package, following the instructions at [pytorch.org/get-started/locally](https://pytorch.org/get-started/locally/), e.g.:
+
+```script
+pip install torch --index-url https://download.pytorch.org/whl/cu121
+```
+
+**NOTE**: Replace `cu121` with the CUDA version matching your driver.
+
+4. Install using `pip`
 
 ```script
 pip install git+https://github.com/VincentCoulombe/precision_track-ReID
 ```
 
-To install with CUDA support (includes TensorRT and PyCUDA):
+To also install with TensorRT/PyCUDA support (for deployment):
 
 ```script
 pip install "git+https://github.com/VincentCoulombe/precision_track-ReID[cuda]"
 ```
 
-3. Or clone the repository using `git` and install it.
+4. Or clone the repository using `git` and install it.
 
 ```script
 git clone https://github.com/VincentCoulombe/precision_track-ReID.git
@@ -60,7 +60,7 @@ cd precision_track-ReID
 pip install -e .
 ```
 
-To install with CUDA support:
+To also install with TensorRT/PyCUDA support (for deployment):
 
 ```script
 pip install -e ".[cuda]"
@@ -68,10 +68,60 @@ pip install -e ".[cuda]"
 
 ## How to use
 
-### 1. Create a MOT dataset
+### 1 Create a MOT dataset
 
-The first step is to have a MOT dataset, meaning [MOT-styled annotations](https://motchallenge.net/).
+First, you will need a dataset to train, validate and test your re-identification model.
+Fortunately, if you already have a PrecisionTracker trained and configured, you will be able to create one almost automatically.
+To do so, you need to execute the following steps:
 
+#### 1.1 Creating a dataset root directory:
+
+Create a new folder (it will be referenced to as your dataset root directory from now on). Inside your dataset root directory,
+Create the following subdirectories.
+
+```bash
+<Your dataset root directory>/
+  ├── bboxes/
+  │ ├── train/
+  │ ├── val/
+  ├── videos/
+  │ ├── train/
+  │ ├── val/
+```
+
+**NOTE** You will need to register the path to your dataset root directory inside your `./configs/user_configs.yaml` file. You can refer to our [Config guide](https://github.com/VincentCoulombe/precision_track-ReID/tree/main/configs) for more details.
+
+#### 1.2 Adding your videos inside your dataset root directories:
+
+Move your videos inside your dataset root directories (I added a small example of what it might look like afterward).
+
+**NOTE 1**: Make sure all your videos have different names (will be usefull for a following step).
+**NOTE 2**: Make sure your validation videos are different enough from your training videos so the validation process is usefull. For example,
+a good practice would be to train and validate on videos coming from recordings that occured on different days.
+
+```bash
+<Your dataset root directory>/
+  ├── bboxes/
+  │ ├── train/
+  │ ├── val/
+  ├── videos/
+  │ ├── train/
+  │   ├── video1.mp4
+  │   ├── video2.avi
+  │   ├── etc...
+  │ ├── val/
+  │   ├── video3.mp4
+  │   ├── etc...
+```
+
+**Awesome engineering tip 1**: If your training and validation videos contain marked animals, make sure all your animal are marked. In other words, do not have a non-marked animal as an identity within your dataset. This is because, the evidence-based re-identification tracking system might be confuse between an animal with a non-visible mark and a non-marked animal.
+
+**Awesome engineering tip 2**: While following engineering tip #1 is good practice, we found that training a re-identification system using a non-mark identity, then moving that non-marked identity within the `disabled_identities` list of the [PrecisionTrack appearance re-identification configuration file](https://github.com/VincentCoulombe/precision_track/tree/main/configs/settings/validation) yielded the best results. In other words, we purposely added a non-marked mouse into our re-identification dataset's recordings so we could train the re-identification model to learn how to classify non-visible marks. We then configure our PrecisionTracker to ignore those classifications during tracking. Obviously, zero non-marked animals ever entered our vivarium during our actual tracking sessions.
+
+#### 1.3 Creating your bounding boxes .csv files
+
+Now that your dataset have videos of your subjects, you have 1/2 of the information this repository need to train a re-identification model.
+The other half is to know "where each subjects are within the videos". To do so, we need to create [MOT-styled annotations](https://motchallenge.net/).
 A MOT-styled annotation file is a `.csv` where each row describes a single bounding box in a single frame. For example:
 
 | frame_id | class_id | instance_id | x   | y   | w   | h   | score |
@@ -80,13 +130,17 @@ A MOT-styled annotation file is a `.csv` where each row describes a single bound
 | 0        | 0        | 5           | 730 | 220 | 58  | 70  | 1     |
 | 1        | 0        | 2           | 415 | 160 | 64  | 71  | 1     |
 
-**Note** In the context of the MOT-styled annonotations, the column `class_id` refers to the subjects species.
+**NOTE** In the context of the MOT-styled annonotations, the column `class_id` refers to the subjects species.
+
+This is where PrecisionTrack come in handy. by reading the [PrecisionTrack tooling guide](https://github.com/VincentCoulombe/precision_track/tree/main/tools), you will notice that the `batch_track.py` tool exists. By reading what is does and what it expects as an input, you will notice you will be able to use it to create your [MOT-styled annotations](https://motchallenge.net/) automatically.
+
+**Awesome engineering tip 1**: If you have multiple subjects in your videos, make sure to manually correct the potential identity switches PrecisionTrack might have made. To do so, execute the following steps: 1) Use PrecisionTrack's visualize.py tool to have a visual representation of your tracking results. 2) Watch the actual visualization video to check if tracking errors occured. 3) If tracking errors occured, correct them by opening the video's `tracked_bboxes.csv` file in excel and manually correcting the errors (swapping back the instance_id). Repeat step 1 to visualize your manual modifications and repeat if necessary.
+
+**Awesome engineering tip 2**: You can avoid all the trouble described in the top engineering tip by having just one subject per re-identification training video. Yes, the re-identification will still be good in a multi-subject setting even if it was trained on videos containing single animals.
 
 For reference, you can check the [MICE sequential dataset](https://drive.google.com/drive/folders/1WcDkX-92X6SCgZPAZXFyDc6EGUzU0Onq?usp=drive_link) which have MOT-styled annonotations under its `./bboxes/*` directories.
 
-**Note** The MOT-styled annotations are used inside the dataset creation pipeline. It will indicate where to crop the images. As such, we recommend the bounding boxes to be as precise as possible.
-
-### 2. Create a dataset metadata file
+### 1.4 Creating your dataset metadata file
 
 You will also need a dataset metadata file (identities between each of yours MOT bounding box files to your defined class identifiants). This file will be a `.json`. Here's an example of a valid file:
 
@@ -124,47 +178,26 @@ Each of the **Video entries** mappings are expected to be lists with the same le
 
 This mapping allows the network to associate each unique IDS (a combination of the label and the instance ID of each subjects) of your MOT bounding box files with your defined identities in the `classes` list.
 
-**Note** You will need to register the path to your dataset metadata file inside your `./configs/user_configs.yaml` file. You can refer to our [Config guide](https://github.com/VincentCoulombe/precision_track-ReID/tree/main/configs) for more details.
+**NOTE** You will need to register the path to your dataset metadata file inside your `./configs/user_configs.yaml` file. You can refer to our [Config guide](https://github.com/VincentCoulombe/precision_track-ReID/tree/main/configs) for more details.
 
-### 3. Format your dataset's file Tree
+### 2. Train, test and deploy your re-identification model
 
-Format your `dataset_directory` so it has the following structure. You will then need to register your `dataset_directory` inside your `./configs/user_configs.yaml` file.
-
-```bash
-<Your dataset root directory>/
-  ├── bboxes/
-  │ ├── train
-  │   ├── video1.csv # NOTE: This is your MOT annotations (your bounding bboxes from step 1). The files can have any name
-  │   ├── video2.csv
-  │   ├── etc...
-  │ ├── val
-  │   ├── video3.csv
-  │   ├── etc...
-  ├── videos/
-  │ ├── train
-  │   ├── video1.mp4 # NOTE: The name of the video files must match their correspondig MOT bboxes files (excluding the extension, obviously).
-  │   ├── video2.avi
-  │   ├── etc...
-  │ ├── val
-  │   ├── video3.mp4
-  │   ├── etc...
-  ├── <your metadata file>.json/ # NOTE This is the metadata file from step 2.
-```
-
-**Note**: The pipeline will automatically create a crops and saved them in the `<dataset_directory>/crops/` directory. The system will also save a `labels.csv` for each phase (train and val) **if one doesn't exist**. If you want to regenerate your dataset, simply delete the `<dataset_directory>/crops/` directory.
-
-### 3. Train, test and deploy your re-identification model
-
-You can now launch the training, testing and deployment processes with the following commands:
+Congratulation! You can now launch the training, testing and deployment processes with the following commands:
 
 ```script
 cd ./tools
 python train_test_deploy.py
 ```
 
-### 4. Move your deployed checkpoints to your PrecisionTrack deployment directory
+This will train, test and deploy your first re-identification model. If you like your test metric values, you can go ahead and track using it, please refer to our [PrecisionTrack appearance re-identification configuration guide](https://github.com/VincentCoulombe/precision_track/tree/main/configs/settings/validation) for more details. If you are not satisfied, you will need to perform one of the following:
 
-Once done, move the newly generated deployed ONNX or TensorRT checkpoints to your PrecisionTrack's [deploying_directory](https://github.com/VincentCoulombe/precision_track/tree/main/configs). Then, follow PrecisionTrack's documentation to operationalize your checkpoint.
+- Make sure all your animals are visually distinguishable (if you cannot distinguish them, the model wont). this means that your marked animals need to have their marks being visible at (almost) all time.
+- Make sure you have a nice data distribution within your dataset (ensure that your training videos contain visible, moving and active subjects).
+- Make sure your annotations are correct (by manually checking the generated `<dataset root directory>/crops/` directory).
+
+### 3. BONUS: Move your deployed checkpoints to your PrecisionTrack deployment directory
+
+It is good practice to move the newly generated `.onnx` (and/or `.engine`) file(s) along with the `.yaml` file your PrecisionTrack's [deploying_directory](https://github.com/VincentCoulombe/precision_track/tree/main/configs).
 
 ## Citation
 

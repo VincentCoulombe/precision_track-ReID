@@ -32,6 +32,7 @@ dependencies=[
           'onnx==1.17.0',
           'onnxconverter-common==1.14.0',
           'plotext'
+          'addict'
 ]
 
 [project.optional-dependencies]
