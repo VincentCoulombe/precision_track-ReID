@@ -11,7 +11,6 @@ from torch.optim import SGD, AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR, LambdaLR, SequentialLR
 from transformers import CLIPModel, CLIPProcessor
 
-
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
 CLIP_MEAN = (0.48145466, 0.4578275, 0.40821073)
@@ -164,9 +163,7 @@ class CLIP(BaseBackbone):
         return T.Compose(
             [
                 T.ToPILImage(),
-                T.RandomResizedCrop(
-                    size=img_size, scale=(0.9, 1.0), interpolation=T.InterpolationMode.BICUBIC
-                ),
+                T.RandomResizedCrop(size=img_size, scale=(0.9, 1.0), interpolation=T.InterpolationMode.BICUBIC),
                 T.RandomHorizontalFlip(p=0.5),
                 T.ToTensor(),
                 T.Normalize(mean=CLIP_MEAN, std=CLIP_STD),
@@ -219,9 +216,9 @@ class DINOv3(BaseBackbone):
         return T.Compose(
             [
                 T.ToPILImage(),
-                T.RandomResizedCrop(
-                    size=img_size, scale=(0.8, 1.0), interpolation=T.InterpolationMode.BICUBIC
-                ),
+                T.RandomResizedCrop(size=img_size, scale=(0.8, 1.0), interpolation=T.InterpolationMode.BICUBIC),
+                T.RandAugment(num_ops=2, magnitude=5),
+                T.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.2, hue=0.03),
                 T.RandomHorizontalFlip(p=0.5),
                 T.ToTensor(),
                 T.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),

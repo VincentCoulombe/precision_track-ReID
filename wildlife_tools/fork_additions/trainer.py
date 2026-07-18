@@ -60,6 +60,7 @@ class TrainerWithValidation(BasicTrainer):
             batch_size=self.batch_size,
             num_workers=self.num_workers,
             sampler=sampler,
+            persistent_workers=self.num_workers > 0,
         )
         results = defaultdict(list)
 

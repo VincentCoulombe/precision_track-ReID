@@ -124,8 +124,8 @@ def deploy_model(config, model):
         opset_version=17,
         do_constant_folding=True,
         input_names=["input"],
-        output_names=["output"],
-        dynamic_axes={"input": {0: "batch_size"}, "output": {0: "batch_size"}},
+        output_names=["output", "logits"],
+        dynamic_axes={"input": {0: "batch_size"}, "output": {0: "batch_size"}, "logits": {0: "batch_size"}},
     )
 
     if use_fp16:

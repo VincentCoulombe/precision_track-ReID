@@ -1,8 +1,11 @@
 import json
 import os
 
+import torch.multiprocessing
 import yaml
 from addict import Dict
+
+torch.multiprocessing.set_sharing_strategy("file_system")
 
 from wildlife_tools.fork_additions import (
     PtReIDModel,
