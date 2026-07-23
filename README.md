@@ -130,9 +130,20 @@ A MOT-styled annotation file is a `.csv` where each row describes a single bound
 | 0        | 0        | 5           | 730 | 220 | 58  | 70  | 1     |
 | 1        | 0        | 2           | 415 | 160 | 64  | 71  | 1     |
 
-**NOTE** In the context of the MOT-styled annonotations, the column `class_id` refers to the subjects species.
+**NOTE** In the context of the MOT-styled annotations, the column `class_id` refers to the subjects species.
 
-This is where PrecisionTrack come in handy. by reading the [PrecisionTrack tooling guide](https://github.com/VincentCoulombe/precision_track/tree/main/tools), you will notice that the `batch_track.py` tool exists. By reading what is does and what it expects as an input, you will notice you will be able to use it to create your [MOT-styled annotations](https://motchallenge.net/) automatically.
+This is where PrecisionTrack come in handy. You cam train a PrecisionTracker to automatically label your videos (thus almost automatically creating your MOT dataset). More specifically, this is how **we created our MOT dataset**:
+
+We created our MOT dataset by doing the following:
+
+1. Train a good (80%+ detection F1 & 80%+ OKS) subject detection and pose-estimation model (follow [PrecisionTrack's documentation](https://github.com/VincentCoulombe/precision_track) for more details)
+2. Use the `batch_track_directory.py` tool,
+   Please refer to the [tooling documentation](https://github.com/VincentCoulombe/precision_track/tree/main/tools) and the [configuration documentation](https://github.com/VincentCoulombe/precision_track/tree/main/configs). This tool will generate tracking results for every videos in the provided directory. The relevant tracking results (for creating MOT dataset) will be saved in the `<saving_directory>/*/tracked_bboxes.csv` files.
+3. Use the `visualize.py` tool (with only `display_bounding_boxes` set to `true` as Visualization parameter) to create a visual for every tracking results obtained in 2).
+4. Manually review the tracking results and correct the tracking errors (ID switches).
+   You can manually edit the tracking switches by editing the `instance_id` column (meaning switching back the swapped IDs) of the `tracked_bboxes.csv` file saved inside the `saving_directory` from which the visual was created.
+5. Re-runn the step 3) to generate up-to-date visuals. These new visuals will take into account your manual corrections. Now you will be able to assess it for a final revision.
+6. Move your `<saving_directory>/*/tracked_bboxes.csv` files (which are your MOT annotation files) into their respective places inside `<Your dataset root directory>` and rename them so their names match their correcponding videos.
 
 **Awesome engineering tip 1**: If you have multiple subjects in your videos, make sure to manually correct the potential identity switches PrecisionTrack might have made. To do so, execute the following steps: 1) Use PrecisionTrack's visualize.py tool to have a visual representation of your tracking results. 2) Watch the actual visualization video to check if tracking errors occured. 3) If tracking errors occured, correct them by opening the video's `tracked_bboxes.csv` file in excel and manually correcting the errors (swapping back the instance_id). Repeat step 1 to visualize your manual modifications and repeat if necessary.
 
