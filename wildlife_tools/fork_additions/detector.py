@@ -1,7 +1,6 @@
 import os
 from typing import List, Tuple, Union, Optional
 import onnxruntime as ort
-import pkg_resources
 import re
 import torch.nn.functional as F
 from torchvision.ops import nms
