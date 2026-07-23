@@ -96,32 +96,6 @@ extractor = DeepFeatures(backbone, device='cuda')
 features = extractor(dataset)
 ```
 
-### Local features
-
-There are multiple local feature extractors including Aliked, DISK, SuperPoint and SIFT.
-
-```Python
-from wildlife_tools.features import AlikedExtractor, DiskExtractor, SiftExtractor, SuperPointExtractor
-
-device = 'cuda'
-
-extractor = AlikedExtractor(device=device)
-features = extractor(dataset)
-
-extractor = DiskExtractor(device=device)
-features = extractor(dataset)
-
-extractor = SuperPointExtractor(device=device)
-features = extractor(dataset)
-
-extractor = SiftExtractor(device=device)
-features = extractor(dataset)
-```
-
-For possible keywords, look at their [definitions](https://github.com/WildlifeDatasets/wildlife-tools/blob/main/wildlife_tools/features/local.py).
-
-
-
 ## Similarity scores
 
 
@@ -141,23 +115,9 @@ sim = similarity(query, database)
 
 The `similarity.pairwise` module provides tools and methods for calculating pairwise matching similarity scores. At its core, the `MatchPairs` base class offers pairwise matching with support for batch processing, making it essential for neural network-based matching. Specific implementations of of `MatchPairs` are:
 
-- `MatchLightGlue`: It uses the LightGlue model, a lightweight neural matching that uses extracted SIFT, DISK, ALIKED or SuperPoint keypoints and descriptors.
 - `MatchLOFTR`: It uses the LOFTR (Local Feature TRansformer) model, which performs descriptor-free matching using directly pair of images.
 
 Outputs from the matchers, such as confidence scores for local matches and keypoints, are processed using collectors from `similarity.pairwise.collectors`. In particular, the `CollectCounts` collector calculates  matching similarity scores by counting significant matches based on given confidence thresholds.
-
-The following example matches all pairs by the SuperGlue matcher with SuperPoint features and calculates similarity scores based on the count of significant matches at confidence thresholds of 0.25, 0.5, and 0.75.
-
-```python
-from wildlife_tools.features import SuperPointExtractor
-from wildlife_tools.similarity import MatchLightGlue, CollectCounts
-
-transform = T.Compose([T.Resize([224, 224]), T.ToTensor()])
-dataset_query.transform, dataset_database.transform = transform, transform
-extractor = SuperPointExtractor()
-matcher = MatchLightGlue(features='superpoint', collector=CollectCounts(thresholds=[0.25, 0.5, 0.75]))
-output = matcher(extractor(dataset_query), extractor(dataset_database))
-```
 
 The following example matches all pairs by the LOFTR matcher and calculates similarity scores based on the count of significant matches at confidence thresholds of 0.25, 0.5, and 0.75. Note that LOFTR operates directly on image pairs and requires no feature extraction.
 

@@ -36,7 +36,6 @@ nav:
   - Training ML models: training.md
   - Pre-trained models:
     - MegaDescriptor: megadescriptor.md
-    - WildFusion: wildfusion.md
   - References:
     - Features: reference_features.md
     - Inference: reference_inference.md

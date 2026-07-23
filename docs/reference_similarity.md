@@ -30,14 +30,6 @@
         - "!^_[^_]"
         - "!PairDataset"
 
-::: similarity.pairwise.lightglue
-    options:
-      show_root_heading: true
-      heading_level: 2
-      filters:
-        - "!^_[^_]"
-
-
 ::: similarity.pairwise.loftr
     options:
       show_root_heading: true
