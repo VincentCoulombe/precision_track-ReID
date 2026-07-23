@@ -14,25 +14,24 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies=[
-          'torch>=2.0.1',
-          'timm>=0.9.2',
-          'numpy>=1.19.4',
-          'pandas>=1.1.4',
-          'tqdm>=4.62.3',
-          'opencv-python>=4.5.5.62',
-          'Pillow>=7.1.2',
-          'scikit-learn>=1.0.1',
-          'pycocotools',
-          'tensorboard',
-          'pytorch_metric_learning',
-          'transformers>=4.30.2',
-          'wildlife-datasets>=1.0.7',
-          'kornia>=0.6.12',
+          'timm==1.0.27',
+          'numpy==2.2.4',
+          'pandas==2.2.3',
+          'tqdm==4.67.1',
+          'opencv-python==4.11.0.86',
+          'Pillow==11.2.1',
+          'scikit-learn==1.6.1',
+          'pycocotools==2.0.8',
+          'tensorboard==2.19.0',
+          'pytorch_metric_learning==2.8.1',
+          'transformers==4.51.3',
+          'wildlife-datasets==1.0.7',
+          'kornia==0.8.0',
           'gluefactory @ git+https://github.com/cvg/glue-factory.git@1f56839db2242929960d70f85bfac6c19ef2821c',
           'onnx==1.17.0',
           'onnxconverter-common==1.14.0',
-          'plotext',
-          'addict'
+          'plotext==5.3.2',
+          'addict==2.4.0'
 ]
 
 [project.optional-dependencies]

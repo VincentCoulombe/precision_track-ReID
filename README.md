@@ -17,6 +17,8 @@
 
 ## Installation
 
+### CPU installation
+
 1. Create a python virtual environment
 
 ```script
@@ -29,15 +31,11 @@ conda create -n precision_track_reid python==3.11
 conda activate precision_track_reid
 ```
 
-3. (Recommended) Install a GPU-enabled build of PyTorch matching your CUDA driver
-
-By default, `pip` may not select a CUDA-enabled build of `torch` for your system. Check your driver's CUDA version with `nvidia-smi`, then install the matching build **before** installing this package, following the instructions at [pytorch.org/get-started/locally](https://pytorch.org/get-started/locally/), e.g.:
+3. Install the CPU build of PyTorch
 
 ```script
-pip install torch --index-url https://download.pytorch.org/whl/cu121
+pip install torch==2.6.0
 ```
-
-**NOTE**: Replace `cu121` with the CUDA version matching your driver.
 
 4. Install using `pip`
 
@@ -45,13 +43,7 @@ pip install torch --index-url https://download.pytorch.org/whl/cu121
 pip install git+https://github.com/VincentCoulombe/precision_track-ReID
 ```
 
-To also install with TensorRT/PyCUDA support (for deployment):
-
-```script
-pip install "git+https://github.com/VincentCoulombe/precision_track-ReID[cuda]"
-```
-
-4. Or clone the repository using `git` and install it.
+Or clone the repository using `git` and install it.
 
 ```script
 git clone https://github.com/VincentCoulombe/precision_track-ReID.git
@@ -60,9 +52,40 @@ cd precision_track-ReID
 pip install -e .
 ```
 
-To also install with TensorRT/PyCUDA support (for deployment):
+### GPU installation
+
+1. Create a python virtual environment
 
 ```script
+conda create -n precision_track_reid python==3.11
+```
+
+2. Activate your python virtual environment
+
+```script
+conda activate precision_track_reid
+```
+
+3. Install a GPU-enabled build of PyTorch matching your CUDA driver
+
+```script
+pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cu124
+```
+
+**NOTE**: `torch==2.6.0` is only published for the `cu118`, `cu124`, and `cu126` tags.
+
+4. Install using `pip`, with TensorRT/PyCUDA support (for deployment):
+
+```script
+pip install "git+https://github.com/VincentCoulombe/precision_track-ReID[cuda]"
+```
+
+Or clone the repository using `git` and install it.
+
+```script
+git clone https://github.com/VincentCoulombe/precision_track-ReID.git
+
+cd precision_track-ReID
 pip install -e ".[cuda]"
 ```
 
