@@ -106,15 +106,15 @@ This mapping allows the network to associate each unique IDS (a combination of t
 
 ## Crop confidence filter (optional)
 
-- **`detector_checkpoint`**: Path to your PrecisionTrack's checkpoint. This option is optionnal, meaning you can leave a `null` value to disable it. If enable, the dataset creation pipeline will be able to access a confidence level for each crop of your dataset. Knowing the confidence level of your crop will then enable the testing pipeline to calculate a F1 score specifically for confident crops.
+Confidence is read directly from an optional `score` column in your `bboxes/<phase>/*.csv` files (the same score your detector/tracker already produced upstream). If a given CSV has no `score` column, the filter is automatically disabled for the crops it contains (they're always kept).
 
 ### `confidence_threshold`
 
 - **Type**: Float (0.0 to 1.0)
 - **Default**: `0.75`
-- **Description**: Minimum detector score a crop must reach to be considered "confident". This value is only consulted when `detector_checkpoint` is set; otherwise no detector is run and the filter is disabled. When the filter is enabled, the dataset creation pipeline writes only crops whose detector score is `>= confidence_threshold` to disk, and the testing pipeline reports a dedicated F1 score over those confident crops.
+- **Description**: Minimum `score` (from the bbox CSV) a crop must reach to be considered "confident". The dataset pipeline keeps only crops whose score is `>= confidence_threshold` when the confidence filter is applied, and the testing pipeline reports a dedicated F1 score over those confident crops.
 
-**Important**: This value is only used when creating a new `labels.csv` file. If a labels file already exists, this parameter is ignored — delete `<dataset_directory>/crops/<phase>/labels.csv` to regenerate with a new threshold.
+**Note**: The raw score is stored in `labels.csv`, so this threshold is applied live on every run. Therefore, you do not need to delete `<dataset_directory>/crops/<phase>/labels.csv` to pick up a new value.
 
 ### `bbox_enlargement`
 

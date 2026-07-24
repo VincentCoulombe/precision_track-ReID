@@ -7,11 +7,19 @@ import json
 import random
 import numpy as np
 
-from .utils import print_info, print_warning, print_counts, calculate_overlaps, enlarge_and_clip_bbox, DetectionFilter
+from .utils import (
+    print_info,
+    print_warning,
+    print_counts,
+    calculate_overlaps,
+    enlarge_and_clip_bbox,
+    VIDEO_EXTENSIONS,
+)
 
 
 class BalancedImageDataset:
     MANDATORY_BBOX_COLUMNS = ["frame_id", "class_id", "instance_id", "x", "y", "w", "h"]
+    OPTIONAL_BBOX_COLUMNS = ["score"]
     SUPPORTED_PHASES = ["train", "val", "test"]
 
     def __init__(
@@ -24,19 +32,15 @@ class BalancedImageDataset:
         select_every: int = 5,
         overlap_thr: float = 0.8,
         return_isolation: bool = False,
-        detector_checkpoint: str | None = None,
+        confident_only: bool = False,
         bbox_enlargement: float = 0.1,
         confidence_threshold: float = 0.75,
     ):
         self.return_isolation = bool(return_isolation)
-        self.confident_only = detector_checkpoint is not None
+        self.confident_only = bool(confident_only)
         self.bbox_enlargement = float(bbox_enlargement)
         self.confidence_threshold = float(confidence_threshold)
-
-        if self.confident_only:
-            print_info(f"Confidence filter ENABLED (threshold={self.confidence_threshold}).")
-        else:
-            print_info("Confidence filter DISABLED - all crops will be kept.")
+        self.has_confidence = False
 
         assert phase in self.SUPPORTED_PHASES
         self.phase = phase
@@ -74,18 +78,29 @@ class BalancedImageDataset:
                     f"columns {missing_columns}. Mandatory columns are {self.MANDATORY_BBOX_COLUMNS}, "
                     f"received {sequence.columns.tolist()}."
                 )
-                extra_columns = [c for c in sequence.columns if c not in self.MANDATORY_BBOX_COLUMNS]
+                recognized_columns = self.MANDATORY_BBOX_COLUMNS + self.OPTIONAL_BBOX_COLUMNS
+                extra_columns = [c for c in sequence.columns if c not in recognized_columns]
                 if extra_columns:
                     print_warning(
                         f"The bounding boxes ground truth file: '{seq_path}' has extra columns "
                         f"{extra_columns} that are not used."
                     )
-                    sequence = sequence[self.MANDATORY_BBOX_COLUMNS]
+                kept_columns = self.MANDATORY_BBOX_COLUMNS + (["score"] if "score" in sequence.columns else [])
+                sequence = sequence[kept_columns]
+                if "score" in sequence.columns:
+                    self.has_confidence = True
                 self.sequences[name] = sequence
                 for row in sequence[["class_id", "instance_id"]].itertuples(index=False):
                     idx = self._find_instance_in_mapping(name, row.class_id, row.instance_id)
                     if idx is not None:
                         global_identity = self.mapping["classes"][idx]
+
+        if self.confident_only and self.has_confidence:
+            print_info(f"Confidence filter ENABLED (threshold={self.confidence_threshold}).")
+        elif self.confident_only:
+            print_info("Confidence filter requested but no 'score' column found in any bbox CSV - DISABLED.")
+        else:
+            print_info("Confidence filter DISABLED - all crops will be kept.")
 
         videos_dir = os.path.join(root, "videos", self.phase)
         self.crops_dir = os.path.join(root, "crops", self.phase)
@@ -98,22 +113,24 @@ class BalancedImageDataset:
             print_info(f"Loading labels from '{labels_csv_path}'...")
             labels_df = pd.read_csv(labels_csv_path)
             has_isolation = "isolated" in labels_df.columns
-            has_confident = "confident" in labels_df.columns
+            has_score = "score" in labels_df.columns
+            if has_score:
+                self.has_confidence = True
 
             total_crops = 0
             confident_crops = 0
             for row in labels_df.itertuples(index=False):
                 isolated = row.isolated if has_isolation else True
-                confident = row.confident if has_confident else True
+                score = row.score if has_score else None
+                confident = score is None or pd.isna(score) or score >= self.confidence_threshold
                 total_crops += 1
                 if confident:
                     confident_crops += 1
-                # Filter by confidence if detector_checkpoint is set
                 if self.confident_only and not confident:
                     continue
                 identity_crops[row.identity].append((row.path, isolated))
 
-            if has_confident:
+            if has_score:
                 if self.confident_only:
                     print_info(f"Loaded {confident_crops}/{total_crops} confident crops (filtered).")
                 else:
@@ -125,18 +142,8 @@ class BalancedImageDataset:
 
         elif os.path.isdir(videos_dir):
             os.makedirs(self.crops_dir, exist_ok=True)
-            video_extensions = (".mp4", ".avi", ".mov", ".mkv", ".webm")
-
-            detection_filter = None
-            if detector_checkpoint is not None:
-                detection_filter = DetectionFilter(
-                    model={"input_shapes": [(640, 640)], "checkpoint": detector_checkpoint},
-                    sample_every=1,
-                    conf_thresh=self.confidence_threshold,
-                )
-
             for video_file in os.listdir(videos_dir):
-                if video_file.lower().endswith(video_extensions):
+                if video_file.lower().endswith(VIDEO_EXTENSIONS):
                     print_info(
                         f"Extracting crops from '{os.path.abspath(os.path.join(videos_dir, video_file))}' to '{os.path.abspath(self.crops_dir)}'..."
                     )
@@ -172,17 +179,6 @@ class BalancedImageDataset:
                                     frame_identity_counts.get(global_identity, 0) + 1
                                 )
 
-                        # Determine which identities are confident (if detection_filter is set)
-                        confident_ids = None
-                        if detection_filter is not None and len(frame_bboxes) > 0:
-                            frame_detections = []
-                            for row in frame_bboxes.itertuples(index=False):
-                                idx = self._find_instance_in_mapping(video_name, row.class_id, row.instance_id)
-                                if idx is not None:
-                                    gid = self.mapping["classes"][idx]
-                                    frame_detections.append((gid, int(row.x), int(row.y), int(row.w), int(row.h)))
-                            confident_ids = {d[0] for d in detection_filter(frame, frame_detections)}
-
                         for row in frame_bboxes.itertuples(index=False):
                             idx = self._find_instance_in_mapping(video_name, row.class_id, row.instance_id)
                             if idx is None:
@@ -193,10 +189,9 @@ class BalancedImageDataset:
                             if frame_identity_counts[global_identity] > 1:  # Filter out duplicate labels (errors)
                                 continue
 
-                            # Determine confidence status for this crop
-                            is_confident = True
-                            if confident_ids is not None:
-                                is_confident = global_identity in confident_ids
+                            # Confidence comes directly from the bbox CSV's 'score' column, if present
+                            score = row.score if "score" in frame_bboxes.columns else None
+                            is_confident = score is None or pd.isna(score) or score >= self.confidence_threshold
 
                             if self.confident_only and not is_confident:
                                 continue
@@ -242,9 +237,9 @@ class BalancedImageDataset:
                                     isolation_status = False
                                     break
 
-                            # Store (path, isolated, confident) - we'll unpack confident when saving
+                            # Store (path, isolated, score) - we'll unpack score when saving
                             identity_crops[global_identity].append(
-                                (os.path.abspath(output_path), isolation_status, is_confident)
+                                (os.path.abspath(output_path), isolation_status, score)
                             )
                             last_seen_bbox[global_identity] = current_bbox
 
@@ -257,13 +252,13 @@ class BalancedImageDataset:
                 labels_data = []
                 for identity, items in identity_crops.items():
                     for item in items:
-                        path, isolated, confident = item
+                        path, isolated, score = item
                         labels_data.append(
                             {
                                 "identity": identity,
                                 "path": path,
                                 "isolated": isolated,
-                                "confident": confident,
+                                "score": score,
                             }
                         )
                 labels_df = pd.DataFrame(labels_data)
@@ -373,7 +368,7 @@ class NumpyDataset(BalancedImageDataset):
         max_length: int = 1000,
         select_every: int = 5,
         return_isolation: bool = False,
-        detector_checkpoint: str | None = None,
+        confident_only: bool = False,
         bbox_enlargement: float = 0.1,
         confidence_threshold: float = 0.75,
     ):
@@ -385,7 +380,7 @@ class NumpyDataset(BalancedImageDataset):
             max_length=max_length,
             select_every=select_every,
             return_isolation=return_isolation,
-            detector_checkpoint=detector_checkpoint,
+            confident_only=confident_only,
             bbox_enlargement=bbox_enlargement,
             confidence_threshold=confidence_threshold,
         )

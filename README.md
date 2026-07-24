@@ -69,7 +69,7 @@ conda activate precision_track_reid
 3. Install a GPU-enabled build of PyTorch matching your CUDA driver
 
 ```script
-pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cu124
+pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cu118
 ```
 
 **NOTE**: `torch==2.6.0` is only published for the `cu118`, `cu124`, and `cu126` tags.

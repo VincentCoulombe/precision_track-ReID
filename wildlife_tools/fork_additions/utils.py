@@ -1,9 +1,10 @@
+import os
 import torch
 import numpy as np
+import pandas as pd
 import plotext as plt
-from scipy.optimize import linear_sum_assignment
 
-from .detector import ONNXDetector
+VIDEO_EXTENSIONS = (".mp4", ".avi", ".mov", ".mkv", ".webm")
 
 
 def print_info(msg):
@@ -142,96 +143,15 @@ def calculate_overlaps(b1, b2):
     return inter_area / union_area
 
 
-def filter_matches(x, y, cost_matrix, thresh):
-    num_matches = 0
-    for i in range(len(x)):
-        if cost_matrix[x[i], y[i]] <= thresh:
-            num_matches += 1
-
-    if num_matches == 0:
-        return np.empty(0), np.empty(0)
-
-    thr_x = np.empty(num_matches, dtype=np.float64)
-    thr_y = np.empty(num_matches, dtype=np.float64)
-    index = 0
-    for i in range(len(x)):
-        if cost_matrix[x[i], y[i]] <= thresh:
-            thr_x[index] = x[i]
-            thr_y[index] = y[i]
-            index += 1
-
-    return thr_x, thr_y
-
-
-def linear_assignment(cost_matrix, thresh=None):
-    if cost_matrix.size == 0:
-        return (
-            np.empty(0),
-            np.empty(0),
-        )
-    x, y = linear_sum_assignment(cost_matrix)
-    if thresh is None:
-        return x, y
-    elif isinstance(thresh, float):
-        return filter_matches(x, y, cost_matrix, thresh)
-    else:
-        raise TypeError(f"thresh must be one of [NoneType, float, np.ndarray]. Not, {type(thresh)}.")
-
-
-class DetectionFilter:
-    def __init__(
-        self,
-        model: dict,
-        iou_thresh=0.1,
-        sample_every=30,
-        conf_thresh=0.75,
-    ):
-        self.model = ONNXDetector(**model)
-        self.iou_thresh = iou_thresh
-        self.sample_every = sample_every
-        self.conf_thresh = conf_thresh
-        self.last_sampled = {}  # track_id -> last frame number
-        self.current_frame = 0
-
-    def __call__(self, frame, detections):
-        self.current_frame += 1
-
-        if len(detections) == 0:
-            return detections
-
-        predictions = self.model(frame)[0]["pred_instances"]
-
-        bboxes = predictions["bboxes"]
-        scores = predictions["scores"]
-
-        if len(bboxes) == 0:
-            return []
-
-        num_gts = len(detections)
-        num_preds = len(bboxes)
-        cost_matrix = np.zeros((num_gts, num_preds))
-
-        for i, (track_id, x, y, w, h) in enumerate(detections):
-            for j, pred in enumerate(bboxes):
-                iou = calculate_overlaps((x, y, w, h), (pred[0].item(), pred[1].item(), pred[2].item(), pred[3].item()))
-                cost_matrix[i, j] = 1 - iou
-
-        matched_gts, matched_preds = linear_assignment(cost_matrix, thresh=1 - self.iou_thresh)
-
-        filtered_detections = []
-        for gt_idx, pred_idx in zip(matched_gts, matched_preds):
-            track_id, x, y, w, h = detections[int(gt_idx)]
-            pred_conf = scores[int(pred_idx)]
-
-            if pred_conf < self.conf_thresh:
-                continue
-
-            if track_id in self.last_sampled:
-                frames_since_last = self.current_frame - self.last_sampled[track_id]
-                if frames_since_last < self.sample_every:
-                    continue
-
-            filtered_detections.append((track_id, x, y, w, h))
-            self.last_sampled[track_id] = self.current_frame
-
-        return filtered_detections
+def bboxes_have_score_column(root: str, *phases: str) -> bool:
+    """Check whether any bbox CSV under the given phases has a 'score' column, without loading full data."""
+    for phase in phases:
+        bboxes_dir = os.path.join(root, "bboxes", phase)
+        if not os.path.isdir(bboxes_dir):
+            continue
+        for file in os.listdir(bboxes_dir):
+            if file.endswith(".csv"):
+                header = pd.read_csv(os.path.join(bboxes_dir, file), nrows=0)
+                if "score" in header.columns:
+                    return True
+    return False
