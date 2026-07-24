@@ -10,14 +10,15 @@ from wildlife_tools.fork_additions import (
     print_info,
     NumpyDataset,
     ForkedDeepFeatures,
+    bboxes_have_score_column,
 )
 
 
-def _scenarios(detector_checkpoint):
-    """Return [(label, detector_ckpt)] for each test scenario."""
-    scenarios = [("all", None)]
-    if detector_checkpoint:
-        scenarios.append(("conf_only", detector_checkpoint))
+def _scenarios(has_confidence):
+    """Return [(label, confident_only)] for each test scenario."""
+    scenarios = [("all", False)]
+    if has_confidence:
+        scenarios.append(("conf_only", True))
     return scenarios
 
 
@@ -31,7 +32,9 @@ def test_metrics(config, model):
     f1_scores = {}
     all_scenario_cm = None  # confusion matrix data from the "all" scenario
 
-    for scenario_label, detector_ckpt in _scenarios(config.detector_checkpoint):
+    has_confidence = bboxes_have_score_column(config.dataset_directory, "train", "val")
+
+    for scenario_label, confident_only in _scenarios(has_confidence):
         database = extractor(
             NumpyDataset(
                 metadata=config.metadata,
@@ -42,7 +45,7 @@ def test_metrics(config, model):
                 select_every=10,
                 phase="train",
                 return_isolation=True,
-                detector_checkpoint=detector_ckpt,
+                confident_only=confident_only,
                 bbox_enlargement=config.bbox_enlargement,
                 confidence_threshold=config.confidence_threshold,
             )
@@ -58,7 +61,7 @@ def test_metrics(config, model):
                 select_every=10,
                 phase="val",
                 return_isolation=True,
-                detector_checkpoint=detector_ckpt,
+                confident_only=confident_only,
                 bbox_enlargement=config.bbox_enlargement,
                 confidence_threshold=config.confidence_threshold,
             )
@@ -111,7 +114,9 @@ def test_classification(config, model):
     f1_scores = {}
     all_scenario_data = None  # (labels, preds, unique_labels, isolated) from "all" scenario
 
-    for scenario_label, detector_ckpt in _scenarios(config.detector_checkpoint):
+    has_confidence = bboxes_have_score_column(config.dataset_directory, "val")
+
+    for scenario_label, confident_only in _scenarios(has_confidence):
         test_dataset = NumpyDataset(
             metadata=config.metadata,
             img_size=config.img_size,
@@ -121,7 +126,7 @@ def test_classification(config, model):
             select_every=10,
             phase="val",
             return_isolation=True,
-            detector_checkpoint=detector_ckpt,
+            confident_only=confident_only,
             bbox_enlargement=config.bbox_enlargement,
             confidence_threshold=config.confidence_threshold,
         )

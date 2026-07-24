@@ -33,7 +33,7 @@ def calibrate_temperature(config, model):
         max_length=2000,
         select_every=10,
         return_isolation=True,
-        detector_checkpoint=config.detector_checkpoint,
+        confident_only=True,
         bbox_enlargement=config.bbox_enlargement,
         confidence_threshold=config.confidence_threshold,
     )

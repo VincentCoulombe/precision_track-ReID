@@ -4,6 +4,7 @@ import os
 import torch.multiprocessing
 import yaml
 from addict import Dict
+from pydantic import ValidationError
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 
@@ -15,9 +16,11 @@ from wildlife_tools.fork_additions import (
     test_metrics,
     test_classification,
     print_info,
+    print_warning,
     deploy_model,
     ArcFaceWithCrossEntropyLoss,
     NumpyDataset,
+    UserConfig,
 )
 
 
@@ -33,7 +36,7 @@ def train(config):
         transform=train_transforms,
         max_length=2000,
         select_every=1,
-        detector_checkpoint=config.detector_checkpoint,
+        confident_only=True,
         bbox_enlargement=config.bbox_enlargement,
         confidence_threshold=config.confidence_threshold,
     )
@@ -49,7 +52,7 @@ def train(config):
         max_length=2000,
         select_every=10,
         return_isolation=True,
-        detector_checkpoint=config.detector_checkpoint,
+        confident_only=True,
         bbox_enlargement=config.bbox_enlargement,
         confidence_threshold=config.confidence_threshold,
     )
@@ -137,7 +140,15 @@ def deploy(config):
 
 def main():
     with open(os.path.join("..", "configs", "user_configs.yaml"), "r") as f:
-        config = Dict(yaml.safe_load(f))
+        raw_config = yaml.safe_load(f)
+
+    try:
+        validated_config = UserConfig(**raw_config)
+    except ValidationError as e:
+        print_warning(f"Invalid 'user_configs.yaml':\n{e}")
+        raise SystemExit(1)
+
+    config = Dict(validated_config.model_dump())
 
     if cuda_available():
         print_info("Your machine is CUDA accelerated. Therefore, the processes will take place on GPU.")

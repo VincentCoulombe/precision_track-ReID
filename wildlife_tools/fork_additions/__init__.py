@@ -7,4 +7,4 @@ from .nn import *
 from .loss import *
 from .deep import *
 from .tester import *
-from .detector import ONNXDetector
+from .config import UserConfig
