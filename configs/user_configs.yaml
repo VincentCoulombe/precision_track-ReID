@@ -13,8 +13,7 @@ num_classes: 11
 # ================================
 # General directories and paths
 # ================================
-dataset_directory: "../../datasets/MICE/pattern_final/"
-# dataset_directory: "../../datasets/MICE/re-id/mot/"
+dataset_directory: "../../datasets/MICE/re-id/mot/"
 
 metadata: "re_id_mapping.json"
 
@@ -23,8 +22,6 @@ save_directory: "../work_dir/training_runs/"
 # ================================
 # Crop confidence filter (optional)
 # ================================
-# Confidence is read from the 'score' column of your bboxes/<phase>/*.csv files, if present.
-# If a CSV has no 'score' column, the filter is automatically disabled for its crops.
 confidence_threshold: 0.75
 bbox_enlargement: 0.5
 
