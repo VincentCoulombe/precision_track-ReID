@@ -21,6 +21,7 @@ from wildlife_tools.fork_additions import (
     ArcFaceWithCrossEntropyLoss,
     NumpyDataset,
     UserConfig,
+    OnnxReIDModel,
 )
 
 
@@ -128,14 +129,50 @@ def test(config):
     print_info("Done testing.")
 
 
+def test_onnx(config, onnx_path, strategy):
+    onnx_model = OnnxReIDModel(onnx_path, device=config.device)
+    config.test_transforms = strategy.get_test_transforms(config.img_size)
+
+    f1_metrics_onnx = test_metrics(config, onnx_model)
+    f1_classification_onnx = test_classification(config, onnx_model)
+
+    results_onnx = dict(f1_metrics=f1_metrics_onnx, f1_classification=f1_classification_onnx)
+
+    out_path = os.path.abspath(os.path.join(config.save_directory, "test_results_onnx.json"))
+    with open(out_path, "w") as f:
+        json.dump(results_onnx, f, indent=2)
+
+    print_info(f"ONNX test results saved at: {out_path}")
+
+    pth_results_path = os.path.abspath(os.path.join(config.save_directory, "test_results.json"))
+    if os.path.isfile(pth_results_path):
+        with open(pth_results_path, "r") as f:
+            pth_results = json.load(f)
+
+        print_info("=== .pth vs .onnx F1 comparison ===")
+        for metric_group in ("f1_metrics", "f1_classification"):
+            for key, onnx_value in results_onnx[metric_group].items():
+                pth_value = pth_results.get(metric_group, {}).get(key)
+                if pth_value is not None:
+                    print_info(
+                        f"  {metric_group}.{key}: pth={pth_value:.4f}  onnx={onnx_value:.4f}  "
+                        f"diff={onnx_value - pth_value:+.4f}"
+                    )
+
+    print_info("Done testing ONNX checkpoint.")
+
+
 def deploy(config):
     ckpt_path = os.path.abspath(os.path.join(config.save_directory, "precision_track_re-identificator.pth"))
     model = PtReIDModel(config=config.model_config, checkpoint=ckpt_path)
     model.eval()
 
-    deploy_model(config, model)
+    onnx_path = deploy_model(config, model)
 
     print_info("Done deploying.")
+
+    print_info("Testing the deployed ONNX checkpoint...")
+    test_onnx(config, onnx_path, model.strategy)
 
 
 def main():

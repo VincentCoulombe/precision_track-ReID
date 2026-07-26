@@ -8,3 +8,4 @@ from .loss import *
 from .deep import *
 from .tester import *
 from .config import UserConfig
+from .onnx_model import OnnxReIDModel
