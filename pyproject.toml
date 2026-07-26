@@ -34,6 +34,9 @@ dependencies=[
 ]
 
 [project.optional-dependencies]
+cpu = [
+    "onnxruntime==1.22.0",
+]
 cuda = [
     "pycuda==2025.1.1",
     "tensorrt==10.11.0.33",

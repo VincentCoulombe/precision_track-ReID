@@ -205,3 +205,5 @@ def deploy_model(config, model):
             print_info(f"Error during TensorRT deployment: {str(e)}")
     else:
         print_info("CUDA not available. Skipping TensorRT deployment.")
+
+    return onnx_path

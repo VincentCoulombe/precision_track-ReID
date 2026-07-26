@@ -37,19 +37,13 @@ conda activate precision_track_reid
 pip install torch==2.6.0
 ```
 
-4. Install using `pip`
-
-```script
-pip install git+https://github.com/VincentCoulombe/precision_track-ReID
-```
-
-Or clone the repository using `git` and install it.
+4. Clone the repository using `git` and install it.
 
 ```script
 git clone https://github.com/VincentCoulombe/precision_track-ReID.git
 
 cd precision_track-ReID
-pip install -e .
+pip install -e ".[cpu]"
 ```
 
 ### GPU installation
@@ -74,13 +68,7 @@ pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cu118
 
 **NOTE**: `torch==2.6.0` is only published for the `cu118`, `cu124`, and `cu126` tags.
 
-4. Install using `pip`, with TensorRT/PyCUDA support (for deployment):
-
-```script
-pip install "git+https://github.com/VincentCoulombe/precision_track-ReID[cuda]"
-```
-
-Or clone the repository using `git` and install it.
+4. Clone the repository using `git` and install it.
 
 ```script
 git clone https://github.com/VincentCoulombe/precision_track-ReID.git
