@@ -31,19 +31,19 @@ conda create -n precision_track_reid python==3.11
 conda activate precision_track_reid
 ```
 
-3. Install the CPU build of PyTorch
-
-```script
-pip install torch==2.6.0
-```
-
-4. Clone the repository using `git` and install it.
+3. Clone the repository using `git` and install it.
 
 ```script
 git clone https://github.com/VincentCoulombe/precision_track-ReID.git
 
 cd precision_track-ReID
 pip install -e ".[cpu]"
+```
+
+4. Install the CPU build of PyTorch
+
+```script
+pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0
 ```
 
 ### GPU installation
@@ -60,15 +60,7 @@ conda create -n precision_track_reid python==3.11
 conda activate precision_track_reid
 ```
 
-3. Install a GPU-enabled build of PyTorch matching your CUDA driver
-
-```script
-pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cu118
-```
-
-**NOTE**: `torch==2.6.0` is only published for the `cu118`, `cu124`, and `cu126` tags.
-
-4. Clone the repository using `git` and install it.
+3. Clone the repository using `git` and install it.
 
 ```script
 git clone https://github.com/VincentCoulombe/precision_track-ReID.git
@@ -76,6 +68,14 @@ git clone https://github.com/VincentCoulombe/precision_track-ReID.git
 cd precision_track-ReID
 pip install -e ".[cuda]"
 ```
+
+4. Install a GPU-enabled build of PyTorch matching your CUDA driver
+
+```script
+pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu118
+```
+
+**NOTE**: `torch==2.6.0` is only published for the `cu118`, `cu124`, and `cu126` tags.
 
 ## How to use
 
