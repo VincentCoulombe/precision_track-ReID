@@ -150,17 +150,17 @@ def deploy_model(config, model):
     )
     # onnx.load pulls in any external data the exporter may have written.
     _save_self_contained(onnx.load(onnx_path), onnx_path)
-    print_info(f"ONNX export completed successfully. Your deployed FP32 ONNX checkpoint is available at '{onnx_path}'.")
 
     if use_fp16:
-        fp16_path = os.path.join(save_dir, "precision_track_re-identificator_fp16.onnx")
         try:
             print_info("FP16 is supported on this hardware. Converting ONNX model to FP16...")
-            model_fp16 = float16.convert_float_to_float16(onnx.load(onnx_path), keep_io_types=True)
-            _save_self_contained(model_fp16, fp16_path)
-            print_info(f"Conversion to FP16 done. FP16 ONNX checkpoint available at '{fp16_path}'.")
+            model_fp16 = float16.convert_float_to_float16(onnx.load(onnx_path))
+            _save_self_contained(model_fp16, onnx_path)
+            print_info(f"Conversion to FP16 done.")
         except Exception as e:
             print_info(f"Error during FP16 conversion: {str(e)}.")
+
+    print_info(f"ONNX export completed successfully. Your deployed ONNX checkpoint is available at '{onnx_path}'.")
 
     if config.device == "cuda":
         try:
@@ -173,7 +173,6 @@ def deploy_model(config, model):
             network = builder.create_network(0)  # Explicit batch is the only mode in TensorRT 10
             parser = trt.OnnxParser(network, TRT_LOGGER)
 
-            # Build from the FP32 graph; TensorRT selects FP16 kernels itself via the builder flag below.
             if not parser.parse_from_file(onnx_path):
                 print_info("ERROR: Failed to parse the ONNX file.")
                 for error in range(parser.num_errors):
