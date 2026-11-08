@@ -1,3 +1,4 @@
+import inspect
 import torch
 import torch.nn.functional as F
 import os
@@ -96,26 +97,45 @@ def calibrate_temperature(config, model):
 
     model.to(orig_device)
 
+def _onnx_export_kwargs():
+    # Recent torch versions default torch.onnx.export to the Dynamo exporter. Pin the TorchScript
+    # exporter (which honours dynamic_axes) when the option exists, without breaking older torch.
+    if "dynamo" in inspect.signature(torch.onnx.export).parameters:
+        return {"dynamo": False}
+    return {}
+
+
+def _save_self_contained(model_onnx, onnx_path):
+    # Keep the weights inside the .onnx file so no .onnx.data sidecar is needed at load time.
+    onnx.checker.check_model(model_onnx)
+    onnx.save(model_onnx, onnx_path, save_as_external_data=False)
+    sidecar = onnx_path + ".data"
+    if os.path.exists(sidecar):
+        os.remove(sidecar)
+
 
 def deploy_model(config, model):
-    save_dir = config.save_directory
+    save_dir = os.path.abspath(config.save_directory)
+    os.makedirs(save_dir, exist_ok=True)
 
     calibrate_temperature(config, model)
 
-    model.eval()
-    dummy_input = torch.randn(1, 3, 224, 224)
+    model = model.float().eval()
+    try:
+        model_device = next(model.parameters()).device
+    except StopIteration:
+        model_device = torch.device("cpu")
+    dummy_input = torch.randn(1, 3, 224, 224, device=model_device, dtype=torch.float32)
 
     use_fp16 = False
-    precision = "FP32"
     if config.device == "cuda" and torch.cuda.is_available():
         device_capability = torch.cuda.get_device_capability()
         if device_capability[0] >= 7:  # The hardare is new enough
             use_fp16 = True
-            precision = "FP16"
 
     onnx_path = os.path.join(save_dir, "precision_track_re-identificator.onnx")
 
-    print_info(f"Exporting model to ONNX format at '{onnx_path}'...")
+    print_info(f"Exporting FP32 model to ONNX format at '{onnx_path}'...")
     torch.onnx.export(
         model,
         dummy_input,
@@ -126,19 +146,21 @@ def deploy_model(config, model):
         input_names=["input"],
         output_names=["output", "logits"],
         dynamic_axes={"input": {0: "batch_size"}, "output": {0: "batch_size"}, "logits": {0: "batch_size"}},
+        **_onnx_export_kwargs(),
     )
+    # onnx.load pulls in any external data the exporter may have written.
+    _save_self_contained(onnx.load(onnx_path), onnx_path)
+    print_info(f"ONNX export completed successfully. Your deployed FP32 ONNX checkpoint is available at '{onnx_path}'.")
 
     if use_fp16:
+        fp16_path = os.path.join(save_dir, "precision_track_re-identificator_fp16.onnx")
         try:
             print_info("FP16 is supported on this hardware. Converting ONNX model to FP16...")
-            model_onnx = onnx.load(onnx_path)
-            model_fp16 = float16.convert_float_to_float16(model_onnx)
-            onnx.save(model_fp16, onnx_path)
-            print_info(f"Conversion to FP16 done.")
+            model_fp16 = float16.convert_float_to_float16(onnx.load(onnx_path), keep_io_types=True)
+            _save_self_contained(model_fp16, fp16_path)
+            print_info(f"Conversion to FP16 done. FP16 ONNX checkpoint available at '{fp16_path}'.")
         except Exception as e:
             print_info(f"Error during FP16 conversion: {str(e)}.")
-
-    print_info(f"ONNX export completed successfully. Your deployed ONNX checkpoint is available at '{onnx_path}'.")
 
     if config.device == "cuda":
         try:
@@ -148,15 +170,15 @@ def deploy_model(config, model):
 
             TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
             builder = trt.Builder(TRT_LOGGER)
-            network = builder.create_network(1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH))
+            network = builder.create_network(0)  # Explicit batch is the only mode in TensorRT 10
             parser = trt.OnnxParser(network, TRT_LOGGER)
 
-            with open(onnx_path, "rb") as model_file:
-                if not parser.parse(model_file.read()):
-                    print_info("ERROR: Failed to parse the ONNX file.")
-                    for error in range(parser.num_errors):
-                        print_info(parser.get_error(error))
-                    return
+            # Build from the FP32 graph; TensorRT selects FP16 kernels itself via the builder flag below.
+            if not parser.parse_from_file(onnx_path):
+                print_info("ERROR: Failed to parse the ONNX file.")
+                for error in range(parser.num_errors):
+                    print_info(parser.get_error(error))
+                return onnx_path
 
             config_trt = builder.create_builder_config()
             config_trt.set_memory_pool_limit(trt.MemoryPoolType.WORKSPACE, 3 << 30)
@@ -178,7 +200,7 @@ def deploy_model(config, model):
 
             if config_trt.add_optimization_profile(profile) < 0:
                 print_info(f"Invalid optimization profile {profile}.")
-                return
+                return onnx_path
 
             precision = "FP32"
             if builder.platform_has_fast_fp16:
@@ -187,6 +209,9 @@ def deploy_model(config, model):
                 precision = "FP16"
 
             serialized_engine = builder.build_serialized_network(network, config_trt)
+            if serialized_engine is None:
+                print_info("ERROR: TensorRT failed to build the engine.")
+                return onnx_path
 
             device_id = torch.cuda.current_device()
             gpu_name = torch.cuda.get_device_name(device_id).replace(" ", "")
